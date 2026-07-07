@@ -7,38 +7,68 @@ selector. Pure HTML/CSS/JS, no backend, no build step.
 
 ---
 
-## 1. Project structure
+## 1. Project structure (Phase 1 — modular architecture)
 
 ```
 election-dashboard/
-├── index.html            # Markup: header, search panel, card grid
+├── index.html
 ├── css/
-│   └── styles.css        # All styling (design tokens, layout, responsive rules)
+│   └── styles.css                # Original styles + Phase 1 additions (drawer, timeline, leaders, insights, boundary image)
 ├── js/
-│   ├── data.js            # Default dataset, embedded as a plain JS object
-│   └── app.js             # Data loading, parsing, search, rendering logic
+│   ├── data.js                   # Master Constituency Data (unchanged, embedded)
+│   ├── data.sample.js            # DEMO data for the 5 new datasets — replace with real Excel exports
+│   ├── config/
+│   │   ├── columnMaps.js         # Master dataset header -> field name map
+│   │   └── datasetManifest.js    # ⭐ Register new datasets HERE — nowhere else
+│   ├── services/
+│   │   ├── dataStore.js          # Loads + joins every dataset by AC Name / AC No
+│   │   └── imageCache.js         # Boundary image preloading + placeholder fallback
+│   ├── components/
+│   │   ├── searchBox.js          # The AC dropdown (unchanged behavior)
+│   │   ├── resultsPanel.js       # Original cards + 2023 results (green/red) + clickable widgets
+│   │   ├── drawer.js             # Side drawer used by every clickable widget
+│   │   ├── boundaryImage.js      # Boundary map card with zoom
+│   │   ├── pastElections.js      # Past election timeline
+│   │   ├── leaders.js            # Political leader profile cards
+│   │   └── insights.js           # Constituency Insights intelligence report
+│   ├── utils/
+│   │   ├── dom.js                # Shared DOM helpers
+│   │   └── csv.js                # CSV parser (for file uploads)
+│   └── app.js                    # Orchestrator — wires everything together
 ├── data/
-│   ├── KA_Raw_Data.xlsx   # Bundled dataset (cleaned: single header row) — for reference / re-upload
-│   └── KA_Raw_Data.csv    # Same data, CSV format — for reference / re-upload
+│   ├── KA_Raw_Data.xlsx / .csv   # Master dataset (reference / re-upload)
 └── README.md
 ```
 
-## 2. How it works
+**Everything is a classic `<script>` tag, not an ES module.** ES modules are blocked by browsers under `file://`, and this project's core requirement — proven the hard way earlier — is that it works when someone just double-clicks `index.html`. Every file attaches to one shared `window.ED` namespace instead of using `import`/`export`.
 
-- `js/data.js` embeds the full default dataset as a plain JS variable
-  (`window.__ELECTION_RECORDS__`), loaded with a normal `<script>` tag.
-  **This is why the dashboard works with zero setup** — just open
-  `index.html` — even by double-clicking it. No server, no network
-  call, and no dependency on any external library is needed for the
-  default view.
-- Every row is normalized into a plain JS object keyed by short field
-  names (see `COLUMN_MAP` in `app.js`), so the rest of the app never has
-  to deal with raw spreadsheet column headers.
-- The **only** thing that needs internet access is uploading a *new*
-  `.xlsx`/`.xls` file via "Load a different file" — that goes through
-  the [SheetJS](https://sheetjs.com/) library, loaded from a CDN.
-  Uploading a `.csv` instead needs no external library at all (parsed
-  with a small built-in CSV parser), so it always works offline.
+## 2. What's new in Phase 1
+
+| Section | Status | Notes |
+|---|---|---|
+| AC search, all original cards, booth gradation, dominant caste | **Unchanged** | Same behavior, same data, same styling |
+| 2023 Assembly Election Results | **Modified (as requested)** | Renamed title; Winner block is now green, Runner-Up is now red |
+| Assembly Constituency / PC / Zone / District / Org District cards | **Modified (as requested)** | Now clickable — open a side drawer with a description, or a friendly "not available yet" message |
+| Assembly Boundary Map | **New** | Shows above the widgets; placeholder graphic until you supply real image URLs |
+| Past Election Results Timeline | **New** | Currently has sample data for 2 constituencies (Nippani, Chikkodi-Sadalga) |
+| Important Political Leaders | **New** | Sample data for Nippani, Chikkodi-Sadalga, Athani |
+| Constituency Insights | **New** | Sample data for Nippani, Chikkodi-Sadalga |
+| Every other constituency | **Working as intended** | Shows graceful "no data yet" states for the new sections — this is the required behavior (§12), not a bug |
+
+## 3. How to plug in your real datasets
+
+You do **not** need to touch any component code. Two steps:
+
+1. **Provide the data** — replace the relevant array/object in `js/data.sample.js` with your real dataset (same field names), or point a dataset's `source` in `js/config/datasetManifest.js` at a fetchable `.json`/`.csv` URL instead of the embedded sample.
+2. **That's it.** `dataStore.js` re-indexes automatically from whatever's in the manifest; every component already reads from it generically.
+
+**For the Google Sheets boundary images specifically:** since this is a backend-less static app, the sheet needs to be reachable via a plain URL — either "File → Publish to web" as CSV, or a link-shared sheet's `/export?format=csv` URL. Once you share that, I can wire the exact fetch for you.
+
+## 4. Redeploying to GitHub Pages
+
+Given the folder-flattening issue from before, **use `git`/GitHub Desktop rather than the web upload UI** for this update — there are now 5 subfolders (`js/config`, `js/services`, `js/components`, `js/utils`) and the web uploader has already shown it doesn't reliably preserve nested folders. See the git-based instructions above if you'd like a walkthrough.
+
+
 - The **search box** filters constituencies by `AC Name` as you type
   (case-insensitive, substring match), with full keyboard support
   (`↑ ↓` to move, `Enter` to select, `Esc` to close).
